@@ -60,7 +60,31 @@
       async function startCamera() {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-          document.getElementById("cameraFeed").srcObject = stream;
+          const video = document.getElementById("cameraFeed");
+          video.srcObject = stream;
+
+          // Send frames to Unity
+          const unityInstance = window.unityInstance; // Ensure Unity instance is loaded
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          video.addEventListener("play", function () {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            function captureFrame() {
+              if (!video.paused && !video.ended) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL("image/jpeg"); // Convert to base64
+
+                // Send image to Unity
+                unityInstance.SendMessage("YourUnityGameObject", "ReceiveCameraFrame", imageData);
+
+                requestAnimationFrame(captureFrame);
+              }
+            }
+            captureFrame();
+          });
         } catch (error) {
           console.error("Camera access denied", error);
         }
@@ -124,6 +148,7 @@
         createUnityInstance(canvas, config, (progress) => {
           document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
         }).then((unityInstance) => {
+          window.unityInstance = unityInstance; // Store Unity instance globally
           document.querySelector("#unity-loading-bar").style.display = "none";
           document.querySelector("#unity-fullscreen-button").onclick = () => {
             unityInstance.SetFullscreen(1);
